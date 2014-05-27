@@ -16,6 +16,8 @@
 
 using namespace mscorlib;
 
+static const HRESULT E_MBAHOST_NET452_ON_WIN7RTM = MAKE_HRESULT(SEVERITY_ERROR, 501, 1);
+
 extern "C" typedef HRESULT (WINAPI *PFN_CORBINDTOCURRENTRUNTIME)(
     __in LPCWSTR pwszFileName,
     __in REFCLSID rclsid,
@@ -63,6 +65,8 @@ static HRESULT CreatePrerequisiteBA(
     __in const BOOTSTRAPPER_COMMAND* pCommand,
     __out IBootstrapperApplication** ppApplication
     );
+static HRESULT VerifyNET4RuntimeIsSupported(
+    );
 
 
 // function definitions
@@ -107,6 +111,10 @@ extern "C" HRESULT WINAPI BootstrapperApplicationCreate(
 
         hr = CreateManagedBootstrapperApplication(pAppDomain, pEngine, pCommand, ppBA);
         BalExitOnFailure(hr, "Failed to create the managed bootstrapper application.");
+    }
+    else if (E_MBAHOST_NET452_ON_WIN7RTM == hr)
+    {
+        BalLogError(hr, "MBA Host cannot run an MBA under the .NET 4 CLR on Windows 7 RTM with .NET 4.5.2 (or greater) installed.");
     }
     else // fallback to the pre-requisite BA.
     {
@@ -375,6 +383,12 @@ static HRESULT GetCLRHost(
     HRESULT hr = S_OK;
     UINT uiMode = 0;
     HMODULE hModule = NULL;
+    CLRCreateInstanceFnPtr pfnCLRCreateInstance = NULL;
+    ICLRMetaHostPolicy* vpCLRMetaHostPolicy = NULL;
+    IStream* vpCfgStream = NULL;
+    LPWSTR pwzVersion = NULL;
+    DWORD cchVersion = 0;
+    ICLRRuntimeInfo* vpCLRRuntimeInfo = NULL;
     PFN_CORBINDTOCURRENTRUNTIME pfnCorBindToCurrentRuntime = NULL;
 
     // Always set the error mode because we will always restore it below.
@@ -389,17 +403,82 @@ static HRESULT GetCLRHost(
         hr = LoadSystemLibrary(L"mscoree.dll", &hModule);
         ExitOnFailure(hr, "Failed to load mscoree.dll");
 
-        pfnCorBindToCurrentRuntime = reinterpret_cast<PFN_CORBINDTOCURRENTRUNTIME>(::GetProcAddress(hModule, "CorBindToCurrentRuntime"));
-        ExitOnNullWithLastError(pfnCorBindToCurrentRuntime, hr, "Failed to get procedure address for CorBindToCurrentRuntime.");
+        pfnCLRCreateInstance = reinterpret_cast<CLRCreateInstanceFnPtr>(::GetProcAddress(hModule, "CLRCreateInstance"));
+        
+        if (NULL == pfnCLRCreateInstance)
+        {
+            pfnCorBindToCurrentRuntime = reinterpret_cast<PFN_CORBINDTOCURRENTRUNTIME>(::GetProcAddress(hModule, "CorBindToCurrentRuntime"));
+            ExitOnNullWithLastError(pfnCorBindToCurrentRuntime, hr, "Failed to get procedure address for CorBindToCurrentRuntime.");
 
-        hr = pfnCorBindToCurrentRuntime(wzConfigPath, CLSID_CorRuntimeHost, IID_ICorRuntimeHost, reinterpret_cast<LPVOID*>(&vpCLRHost));
-        ExitOnRootFailure(hr, "Failed to create the CLR host using the application configuration file path.");
+            hr = pfnCorBindToCurrentRuntime(wzConfigPath, CLSID_CorRuntimeHost, IID_ICorRuntimeHost, reinterpret_cast<LPVOID*>(&vpCLRHost));
+            ExitOnRootFailure(hr, "Failed to create the CLR host using the application configuration file path.");
+        }
+        else
+        {
+            hr = pfnCLRCreateInstance(CLSID_CLRMetaHostPolicy, IID_ICLRMetaHostPolicy, reinterpret_cast<LPVOID*>(&vpCLRMetaHostPolicy));
+            ExitOnRootFailure(hr, "Failed to create instance of ICLRMetaHostPolicy.");
+
+            hr = SHCreateStreamOnFileEx(wzConfigPath, STGM_READ | STGM_SHARE_DENY_WRITE, 0, FALSE, NULL, &vpCfgStream);
+            ExitOnFailure1(hr, "Failed to load bootstrapper config file from path: %ls", wzConfigPath);
+
+            hr = vpCLRMetaHostPolicy->GetRequestedRuntime(METAHOST_POLICY_HIGHCOMPAT, NULL, vpCfgStream, NULL, &cchVersion, NULL, NULL, NULL, IID_ICLRRuntimeInfo, reinterpret_cast<LPVOID*>(&vpCLRRuntimeInfo));
+            ExitOnRootFailure(hr, "Failed to get the CLR runtime info using the application configuration file path.");
+
+            // .NET 4 RTM had a bug where it wouldn't set pcchVersion if pwzVersion was NULL.
+            if (!cchVersion)
+            {
+                hr = vpCLRRuntimeInfo->GetVersionString(NULL, &cchVersion);
+                if (HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER) != hr)
+                {
+                    ExitOnFailure(hr, "Failed to get the length of the CLR version string.");
+                }
+            }
+
+            hr = StrAlloc(&pwzVersion, cchVersion);
+            ExitOnFailure(hr, "Failed to allocate the CLR version string.");
+
+            hr = vpCLRRuntimeInfo->GetVersionString(pwzVersion, &cchVersion);
+            ExitOnFailure(hr, "Failed to get the CLR version string.");
+
+            if (CSTR_EQUAL == CompareString(LOCALE_NEUTRAL, 0, L"v4.0.30319", 10, pwzVersion, cchVersion))
+            {
+                hr = VerifyNET4RuntimeIsSupported();
+                ExitOnFailure(hr, "Found unsupported .NET 4 Runtime.");
+            }
+
+            hr = vpCLRRuntimeInfo->GetInterface(CLSID_CorRuntimeHost, IID_ICorRuntimeHost, reinterpret_cast<LPVOID*>(&vpCLRHost));
+            ExitOnRootFailure(hr, "Failed to get instance of ICorRuntimeHost.");
+
+            // TODO: use ICLRRuntimeHost instead of ICorRuntimeHost on .NET 4 since the former is faster and the latter is deprecated
+            //hr = vpCLRRuntimeInfo->GetInterface(CLSID_CLRRuntimeHost, IID_ICLRRuntimeHost, reinterpret_cast<LPVOID*>(&vpCLRRuntimeHost));
+            //ExitOnRootFailure(hr, "Failed to get instance of ICLRRuntimeHost.");
+        }
     }
 
     vpCLRHost->AddRef();
     *ppCLRHost = vpCLRHost;
 
 LExit:
+    if (vpCLRRuntimeInfo)
+    {
+        vpCLRRuntimeInfo->Release();
+        vpCLRRuntimeInfo = NULL;
+    }
+
+    ReleaseStr(pwzVersion);
+
+    if (vpCfgStream)
+    {
+        vpCfgStream->Release();
+        vpCfgStream = NULL;
+    }
+
+    if (vpCLRMetaHostPolicy)
+    {
+        vpCLRMetaHostPolicy->Release();
+        vpCLRMetaHostPolicy = NULL;
+    }
+
     // Unload the module so it's not in use when we install .NET.
     if (FAILED(hr))
     {
@@ -509,6 +588,46 @@ LExit:
         ::FreeLibrary(hModule);
     }
     ReleaseStr(sczMbapreqPath);
+
+    return hr;
+}
+
+static HRESULT VerifyNET4RuntimeIsSupported(
+    )
+{
+    HRESULT hr = S_OK;
+    OS_VERSION osv = OS_VERSION_UNKNOWN;
+    DWORD dwServicePack = 0;
+    HKEY hKey = NULL;
+    DWORD er = ERROR_SUCCESS;
+    DWORD dwRelease = 0;
+    DWORD cchRelease = sizeof(dwRelease);
+
+    OsGetVersion(&osv, &dwServicePack);
+    if (OS_VERSION_WIN7 == osv && 0 == dwServicePack)
+    {
+        hr = RegOpen(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\NET Framework Setup\\NDP\\v4\\Full", KEY_QUERY_VALUE, &hKey);
+        if (E_FILENOTFOUND == hr)
+        {
+            ExitFunction1(hr = S_OK);
+        }
+        ExitOnFailure(hr, "Failed to open registry key for .NET 4.");
+
+        er = ::RegQueryValueExW(hKey, L"Release", NULL, NULL, reinterpret_cast<LPBYTE>(&dwRelease), &cchRelease);
+        if (ERROR_FILE_NOT_FOUND == er)
+        {
+            ExitFunction1(hr = S_OK);
+        }
+        ExitOnWin32Error(er, hr, "Failed to get Release value.");
+
+        if (379893 >= dwRelease)
+        {
+            hr = E_MBAHOST_NET452_ON_WIN7RTM;
+        }
+    }
+
+LExit:
+    ReleaseRegKey(hKey);
 
     return hr;
 }
