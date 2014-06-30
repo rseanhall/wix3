@@ -27,14 +27,38 @@ extern "C" {
 #define DeclareConstBSTR(bstr_const, wz) const WCHAR bstr_const[] = { 0x00, 0x00, sizeof(wz)-sizeof(WCHAR), 0x00, wz }
 #define UseConstBSTR(bstr_const) const_cast<BSTR>(bstr_const + 4)
 
+typedef HRESULT (DAPI *PFN_STRALLOC)(
+    __deref_out_ecount_part(cch, 0) LPWSTR* ppwz,
+    __in DWORD_PTR cch
+    );
+typedef HRESULT (DAPI *PFN_STRALLOCSTRING)(
+    __deref_out_ecount_z(cchSource + 1) LPWSTR* ppwz,
+    __in_z LPCWSTR wzSource,
+    __in DWORD_PTR cchSource
+    );
+typedef HRESULT (DAPI *PFN_STRALLOCCONCAT)(
+    __deref_out_z LPWSTR* ppwz,
+    __in_z LPCWSTR wzSource,
+    __in DWORD_PTR cchSource
+    );
+typedef HRESULT (__cdecl *PFN_STRALLOCFORMATTED)(
+    __deref_out_z LPWSTR* ppwz,
+    __in __format_string LPCWSTR wzFormat,
+    ...
+    );
+typedef HRESULT (DAPI *PFN_STRALLOCFORMATTEDARGS)(
+    __deref_out_z LPWSTR* ppwz,
+    __in __format_string LPCWSTR wzFormat,
+    __in va_list args
+    );
+
 HRESULT DAPI StrAlloc(
     __deref_out_ecount_part(cch, 0) LPWSTR* ppwz,
     __in DWORD_PTR cch
     );
-HRESULT DAPI StrAllocate(
+HRESULT DAPI StrAllocSecure(
     __deref_out_ecount_part(cch, 0) LPWSTR* ppwz,
-    __in DWORD_PTR cch,
-    __in BOOL fZeroOnRealloc
+    __in DWORD_PTR cch
     );
 HRESULT DAPI StrTrimCapacity(
     __deref_out_z LPWSTR* ppwz
@@ -59,11 +83,10 @@ HRESULT DAPI StrAllocString(
     __in_z LPCWSTR wzSource,
     __in DWORD_PTR cchSource
     );
-HRESULT DAPI StrAllocateString(
+HRESULT DAPI StrAllocStringSecure(
     __deref_out_ecount_z(cchSource + 1) LPWSTR* ppwz,
     __in_z LPCWSTR wzSource,
-    __in DWORD_PTR cchSource,
-    __in BOOL fZeroOnRealloc
+    __in DWORD_PTR cchSource
     );
 HRESULT DAPI StrAnsiAllocString(
     __deref_out_ecount_z(cchSource+1) LPSTR* ppsz,
@@ -92,11 +115,10 @@ HRESULT DAPI StrAllocConcat(
     __in_z LPCWSTR wzSource,
     __in DWORD_PTR cchSource
     );
-HRESULT DAPI StrAllocateConcat(
+HRESULT DAPI StrAllocConcatSecure(
     __deref_out_z LPWSTR* ppwz,
     __in_z LPCWSTR wzSource,
-    __in DWORD_PTR cchSource,
-    __in BOOL fZeroOnRealloc
+    __in DWORD_PTR cchSource
     );
 HRESULT DAPI StrAnsiAllocConcat(
     __deref_out_z LPSTR* ppz,
@@ -108,9 +130,8 @@ HRESULT __cdecl StrAllocFormatted(
     __in __format_string LPCWSTR wzFormat,
     ...
     );
-HRESULT __cdecl StrAllocateFormatted(
+HRESULT __cdecl StrAllocFormattedSecure(
     __deref_out_z LPWSTR* ppwz,
-    __in BOOL fZeroOnRealloc,
     __in __format_string LPCWSTR wzFormat,
     ...
     );
@@ -124,9 +145,8 @@ HRESULT DAPI StrAllocFormattedArgs(
     __in __format_string LPCWSTR wzFormat,
     __in va_list args
     );
-HRESULT DAPI StrAllocateFormattedArgs(
+HRESULT DAPI StrAllocFormattedArgsSecure(
     __deref_out_z LPWSTR* ppwz,
-    __in BOOL fZeroOnRealloc,
     __in __format_string LPCWSTR wzFormat,
     __in va_list args
     );
