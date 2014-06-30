@@ -849,7 +849,16 @@ extern "C" HRESULT CacheCompletePayload(
     hr = VerifyFileAgainstPayload(pPayload, sczCachedPath);
     if (SUCCEEDED(hr))
     {
-        ::DecryptFileW(sczCachedPath, 0);  // Let's try to make sure it's not encrypted.
+        // Let's try to reset any possible read-only/system bits.
+        if (!::SetFileAttributesW(sczCachedPath, FILE_ATTRIBUTE_NORMAL))
+        {
+            LogStringLine(REPORT_WARNING, "Error %d: Failed to clear read-only/system bits '%ls'", ::GetLastError(), sczCachedPath);
+        }
+        // Let's try to make sure it's not encrypted.
+        if (!::DecryptFileW(sczCachedPath, 0))
+        {
+            LogStringLine(REPORT_WARNING, "Error %d: Failed to decrypt '%ls'", ::GetLastError(), sczCachedPath);
+        }
         LogId(REPORT_STANDARD, MSG_VERIFIED_EXISTING_PAYLOAD, pPayload->sczKey, sczCachedPath);
         ExitFunction();
     }
@@ -892,7 +901,11 @@ extern "C" HRESULT CacheCompletePayload(
     hr = FileEnsureMoveWithRetry(sczUnverifiedPayloadPath, sczCachedPath, TRUE, TRUE, FILE_OPERATION_RETRY_COUNT, FILE_OPERATION_RETRY_WAIT);
     ExitOnFailure1(hr, "Failed to move verified file to complete payload path: %ls", sczCachedPath);
 
-    ::DecryptFileW(sczCachedPath, 0);  // Let's try to make sure it's not encrypted.
+    // Let's try to make sure it's not encrypted.
+    if (!::DecryptFileW(sczCachedPath, 0))
+    {
+        LogStringLine(REPORT_WARNING, "Error %d: Failed to decrypt '%ls'", ::GetLastError(), sczCachedPath);
+    }
 
 LExit:
     ReleaseStr(sczUnverifiedPayloadPath);
@@ -1502,7 +1515,11 @@ static HRESULT ResetPathPermissions(
     hr = AclSetSecurityWithRetry(wzPath, SE_FILE_OBJECT, dwSetSecurity, pSid, NULL, &acl, NULL, FILE_OPERATION_RETRY_COUNT, FILE_OPERATION_RETRY_WAIT);
     ExitOnWin32Error1(er, hr, "Failed to reset the ACL on cached file: %ls", wzPath);
 
-    ::SetFileAttributesW(wzPath, FILE_ATTRIBUTE_NORMAL); // Let's try to reset any possible read-only/system bits.
+    // Let's try to reset any possible read-only/system bits.
+    if (!::SetFileAttributesW(wzPath, FILE_ATTRIBUTE_NORMAL))
+    {
+        LogStringLine(REPORT_WARNING, "Error %d: Failed to clear read-only/system bits '%ls'", ::GetLastError(), wzPath);
+    }
 
 LExit:
     ReleaseMem(pSid);
