@@ -259,6 +259,7 @@ extern "C" HRESULT BVariantSetVersion(
 
 extern "C" HRESULT BVariantCopy(
     __in BURN_VARIANT* pSource,
+    __in BOOL fEncryptTarget,
     __out BURN_VARIANT* pTarget
     )
 {
@@ -267,10 +268,11 @@ extern "C" HRESULT BVariantCopy(
     LPWSTR sczValue = NULL;
     DWORD64 qwValue = 0;
 
+    BVariantUninitialize(pTarget);
+
     switch (pSource->Type)
     {
     case BURN_VARIANT_TYPE_NONE:
-        BVariantUninitialize(pTarget);
         break;
     case BURN_VARIANT_TYPE_NUMERIC:
         hr = BVariantGetNumeric(pSource, &llValue);
@@ -300,7 +302,7 @@ extern "C" HRESULT BVariantCopy(
         hr = E_INVALIDARG;
     }
     ExitOnFailure(hr, "Failed to copy variant.");
-    hr = BVariantSetEncryption(pTarget, pSource->fEncryptValue);
+    hr = BVariantSetEncryption(pTarget, fEncryptTarget);
 
 LExit:
     return hr;

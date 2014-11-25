@@ -409,11 +409,8 @@ extern "C" HRESULT VariablesParseFromXml(
         pVariables->rgVariables[iVariable].fPersisted = fPersisted;
 
         // update variable value
-        hr = BVariantCopy(&value, &pVariables->rgVariables[iVariable].Value);
+        hr = BVariantCopy(&value, fHidden, &pVariables->rgVariables[iVariable].Value);
         ExitOnFailure1(hr, "Failed to set value of variable: %ls", sczId);
-
-        hr = BVariantSetEncryption(&pVariables->rgVariables[iVariable].Value, fHidden);
-        ExitOnFailure(hr, "Failed to set variant encryption");
 
         // prepare next iteration
         ReleaseNullObject(pixnNode);
@@ -608,7 +605,7 @@ extern "C" HRESULT VariableGetVariant(
     }
     ExitOnFailure1(hr, "Failed to get value of variable: %ls", wzVariable);
 
-    hr = BVariantCopy(&pVariable->Value, pValue);
+    hr = BVariantCopy(&pVariable->Value, pVariable->Value.fEncryptValue, pValue);
     ExitOnFailure1(hr, "Failed to copy value of variable: %ls", wzVariable);
 
 LExit:
@@ -1455,11 +1452,14 @@ static HRESULT SetVariableValue(
 {
     HRESULT hr = S_OK;
     DWORD iVariable = 0;
+    BURN_VARIABLE* pVariable = NULL;
 
     ::EnterCriticalSection(&pVariables->csAccess);
 
     hr = FindVariableIndexByName(pVariables, wzVariable, &iVariable);
     ExitOnFailure1(hr, "Failed to find variable value '%ls'.", wzVariable);
+
+    pVariable = pVariables->rgVariables + iVariable;
 
     // insert element if not found
     if (S_FALSE == hr)
@@ -1467,10 +1467,10 @@ static HRESULT SetVariableValue(
         hr = InsertVariable(pVariables, wzVariable, iVariable);
         ExitOnFailure1(hr, "Failed to insert variable '%ls'.", wzVariable);
     }
-    else if (pVariables->rgVariables[iVariable].fBuiltIn) // built-in variables must be overridden
+    else if (pVariable->fBuiltIn) // built-in variables must be overridden
     {
         if (SET_VARIABLE_OVERRIDE_BUILTIN == setBuiltin ||
-            (SET_VARIABLE_OVERRIDE_PERSISTED_BUILTINS == setBuiltin && pVariables->rgVariables[iVariable].fPersisted))
+            (SET_VARIABLE_OVERRIDE_PERSISTED_BUILTINS == setBuiltin && pVariable->fPersisted))
         {
             hr = S_OK;
         }
@@ -1489,7 +1489,7 @@ static HRESULT SetVariableValue(
     // log value when not overwriting a built-in variable
     if (fLog && SET_VARIABLE_NOT_BUILTIN == setBuiltin)
     {
-        if (pVariables->rgVariables[iVariable].fHidden)
+        if (pVariable->fHidden)
         {
             LogStringLine(REPORT_STANDARD, "Setting hidden variable '%ls'", wzVariable);
         }
@@ -1528,7 +1528,7 @@ static HRESULT SetVariableValue(
     }
 
     // update variable value
-    hr = BVariantCopy(pVariant, &pVariables->rgVariables[iVariable].Value);
+    hr = BVariantCopy(pVariant, pVariable->fHidden, &pVariable->Value);
     ExitOnFailure1(hr, "Failed to set value of variable: %ls", wzVariable);
 
 LExit:
@@ -1602,7 +1602,7 @@ static HRESULT InitializeVariableVersionNT(
         break;
     }
 
-    hr = BVariantCopy(&value, pValue);
+    hr = BVariantCopy(&value, value.fEncryptValue, pValue);
     ExitOnFailure(hr, "Failed to set variant value.");
 
 LExit:
@@ -1684,7 +1684,7 @@ static HRESULT InitializeVariableOsInfo(
         break;
     }
 
-    hr = BVariantCopy(&value, pValue);
+    hr = BVariantCopy(&value, value.fEncryptValue, pValue);
     ExitOnFailure(hr, "Failed to set variant value.");
 
 LExit:
@@ -1713,7 +1713,7 @@ static HRESULT InitializeVariableSystemInfo(
         break;
     }
 
-    hr = BVariantCopy(&value, pValue);
+    hr = BVariantCopy(&value, value.fEncryptValue, pValue);
     ExitOnFailure(hr, "Failed to set variant value.");
 
 LExit:

@@ -77,6 +77,7 @@ HRESULT BVariantSetVersion(
     );
 HRESULT BVariantCopy(
     __in BURN_VARIANT* pSource,
+    __in BOOL fEncryptTarget,
     __out BURN_VARIANT* pTarget
     );
 HRESULT BVariantChangeType(
