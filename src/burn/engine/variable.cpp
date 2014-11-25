@@ -408,12 +408,13 @@ extern "C" HRESULT VariablesParseFromXml(
         pVariables->rgVariables[iVariable].fHidden = fHidden;
         pVariables->rgVariables[iVariable].fPersisted = fPersisted;
 
+        // Encryption here (and decryption later inside BVariantCopy) could have been optimized away with breaking change.
+        hr = BVariantSetEncryption(&value, fHidden);
+        ExitOnFailure(hr, "Failed to set variant encryption");
+
         // update variable value
         hr = BVariantCopy(&value, &pVariables->rgVariables[iVariable].Value);
         ExitOnFailure1(hr, "Failed to set value of variable: %ls", sczId);
-
-        hr = BVariantSetEncryption(&pVariables->rgVariables[iVariable].Value, fHidden);
-        ExitOnFailure(hr, "Failed to set variant encryption");
 
         // prepare next iteration
         ReleaseNullObject(pixnNode);
@@ -686,13 +687,17 @@ extern "C" HRESULT VariableSetString(
     __in BOOL fOverwriteBuiltIn
     )
 {
+    HRESULT hr = S_OK;
     BURN_VARIANT variant = { };
 
-    // We're not going to encrypt this value, so can access the value directly.
-    variant.sczValue = (LPWSTR)wzValue;
-    variant.Type = BURN_VARIANT_TYPE_STRING;
+    // Need to call BVariantSetString so it will copy the string.
+    hr = BVariantSetString(&variant, wzValue, 0);
+    ExitOnFailure(hr, "Failed to copy the value.");
 
-    return SetVariableValue(pVariables, wzVariable, &variant, fOverwriteBuiltIn ? SET_VARIABLE_OVERRIDE_BUILTIN : SET_VARIABLE_NOT_BUILTIN, TRUE);
+    hr = SetVariableValue(pVariables, wzVariable, &variant, fOverwriteBuiltIn ? SET_VARIABLE_OVERRIDE_BUILTIN : SET_VARIABLE_NOT_BUILTIN, TRUE);
+
+LExit:
+    return hr;
 }
 
 extern "C" HRESULT VariableSetVersion(
@@ -1526,6 +1531,10 @@ static HRESULT SetVariableValue(
             }
         }
     }
+
+    // Encryption here (and decryption later inside BVariantCopy) could have been optimized away with breaking change.
+    hr = BVariantSetEncryption(pVariant, pVariables->rgVariables[iVariable].fHidden);
+    ExitOnFailure(hr, "Failed to set variant encryption");
 
     // update variable value
     hr = BVariantCopy(pVariant, &pVariables->rgVariables[iVariable].Value);

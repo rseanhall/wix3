@@ -220,15 +220,9 @@ extern "C" HRESULT BVariantSetString(
             memset(pVariant, 0, sizeof(BURN_VARIANT));
         }
 
-        if (NULL == wzValue)
-        {
-            pVariant->sczValue = NULL;
-        }
-        else
-        {
-            hr = StrAllocStringSecure(&pVariant->sczValue, wzValue, cchValue);
-        }
+        hr = StrAllocStringSecure(&pVariant->sczValue, wzValue, cchValue);
         ExitOnFailure(hr, "Failed to copy string.");
+
         pVariant->Type = BURN_VARIANT_TYPE_STRING;
     }
 
@@ -267,10 +261,11 @@ extern "C" HRESULT BVariantCopy(
     LPWSTR sczValue = NULL;
     DWORD64 qwValue = 0;
 
+    BVariantUninitialize(pTarget);
+
     switch (pSource->Type)
     {
     case BURN_VARIANT_TYPE_NONE:
-        BVariantUninitialize(pTarget);
         break;
     case BURN_VARIANT_TYPE_NUMERIC:
         hr = BVariantGetNumeric(pSource, &llValue);
