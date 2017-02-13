@@ -894,6 +894,9 @@ namespace Microsoft.Tools.WindowsInstallerXml.Extensions
                 case "14.0":
                     project = ConstructMsbuildWrapperProject(projectFile, this.Core, this.configuration, this.platform, "14");
                     break;
+                case "15.0":
+                    project = ConstructMsbuildWrapperProject(projectFile, this.Core, this.configuration, this.platform, "15");
+                    break;
                 default:
                     project = ConstructMsbuild35Project(projectFile, this.Core, this.configuration, this.platform);
                     break;

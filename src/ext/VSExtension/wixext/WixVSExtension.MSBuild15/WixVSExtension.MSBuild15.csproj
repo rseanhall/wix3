@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (c) .NET Foundation and contributors. All rights reserved. Licensed under the Microsoft Reciprocal License. See LICENSE.TXT file in the project root for full license information. -->
+
+
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{B2066E80-6475-4B26-8371-2A1C59FAAE91}</ProjectGuid>
+    <AssemblyName>WixVSExtension.MSBuild15</AssemblyName>
+    <OutputType>Library</OutputType>
+    <RootNamespace>Microsoft.Tools.WindowsInstallerXml.Extensions.WixVSExtension</RootNamespace>
+    <TargetFrameworkVersion>4.6</TargetFrameworkVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="AssemblyInfo.cs" />
+    <Compile Include="MSBuild15Project.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Microsoft.Build, Version=15.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+	  <HintPath>$(VS2017Path)MSBuild\15.0\Bin\Microsoft.Build.dll</HintPath>
+	</Reference>
+    <Reference Include="Microsoft.Build.Engine, Version=15.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+	  <HintPath>$(VS2017Path)MSBuild\15.0\Bin\Microsoft.Build.Engine.dll</HintPath>
+	</Reference>
+    <Reference Include="Microsoft.Build.Framework, Version=15.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+	  <HintPath>$(VS2017Path)MSBuild\15.0\Bin\Microsoft.Build.Framework.dll</HintPath>
+	</Reference>
+    <Reference Include="Microsoft.Build.Utilities.Core, Version=15.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+	  <HintPath>$(VS2017Path)MSBuild\15.0\Bin\Microsoft.Build.Utilities.Core.dll</HintPath>
+	</Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Xml" />
+    <ProjectReference Include="..\..\..\..\tools\Wix\Wix.csproj" />
+    <ProjectReference Include="..\WixVSExtension.csproj" />
+  </ItemGroup>
+  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildProjectDirectory), wix.proj))\tools\WixBuild.targets" />
+</Project>

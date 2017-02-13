@@ -90,6 +90,12 @@
                 <File Source="WixVSExtension.MSBuild14.dll" />
             </Component>
             <?endif ?>
+
+            <?ifdef VS2017Available ?>
+            <Component>
+                <File Source="WixVSExtension.MSBuild15.dll" />
+            </Component>
+            <?endif ?>
         </ComponentGroup>
     </Fragment>
 
